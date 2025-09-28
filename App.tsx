@@ -19,11 +19,11 @@ const App: React.FC = () => {
     <HashRouter>
       <div className="bg-[#1c1c1c] text-white min-h-screen font-sans">
         <div className="bg-black bg-opacity-30 backdrop-blur-sm sticky top-0 z-40">
-            <div className="container mx-auto px-4">
+            <div className="container mx-auto px-4 max-w-7xl">
                 <Header />
             </div>
         </div>
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-8 max-w-7xl">
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/adoption" element={<AdoptionPage />} />
