@@ -12,7 +12,7 @@ const Toast: React.FC<ToastProps> = ({ toast }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       removeToast(toast.id);
-    }, 4000);
+    }, 3000);
 
     return () => {
       clearTimeout(timer);
@@ -20,14 +20,14 @@ const Toast: React.FC<ToastProps> = ({ toast }) => {
   }, [toast.id, removeToast]);
 
   const typeClasses = {
-    success: 'bg-green-600 border-green-500',
-    error: 'bg-red-600 border-red-500',
-    info: 'bg-blue-600 border-blue-500',
+    success: 'bg-green-600/80 border-green-500',
+    error: 'bg-red-600/80 border-red-500',
+    info: 'bg-blue-600/80 border-blue-500',
   };
 
   return (
     <div 
-      className={`flex items-center text-white px-6 py-3 rounded-lg shadow-lg border-l-4 ${typeClasses[toast.type]} animate-slide-in-right`}
+      className={`flex items-center text-white px-6 py-3 rounded-lg shadow-lg border-l-4 backdrop-blur-sm ${typeClasses[toast.type]} animate-slide-in-right`}
     >
       <div className="flex-1">
         <p className="font-semibold">{toast.message}</p>

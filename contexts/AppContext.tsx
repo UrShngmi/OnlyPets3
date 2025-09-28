@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Pet, Service, WishlistItem, Toast, ToastType, Product, CartItem, Booking } from '../types';
+import { Pet, Service, WishlistItem, Toast, ToastType, Product, CartItem, Booking, User } from '../types';
 import { generatePetsData } from '../services/geminiService';
 import { getPetImages, getServiceImage } from '../utils/imageUtils';
 
@@ -10,11 +10,14 @@ interface AppContextType {
   cart: CartItem[];
   bookings: Booking[];
   isAuthModalOpen: boolean;
+  isProfileModalOpen: boolean;
   toasts: Toast[];
   loading: boolean;
   error: string | null;
+  currentUser: User | null;
   toggleWishlist: (item: WishlistItem) => void;
   toggleAuthModal: (isOpen: boolean) => void;
+  toggleProfileModal: (isOpen: boolean) => void;
   addToast: (message: string, type?: ToastType) => void;
   removeToast: (id: number) => void;
   addToCart: (product: Product) => void;
@@ -22,9 +25,16 @@ interface AppContextType {
   updateCartQuantity: (productId: string, newQuantity: number) => void;
   clearCart: () => void;
   addBooking: (booking: Booking) => void;
+  signup: (email: string, pass: string) => Promise<boolean>;
+  login: (email: string, pass: string) => Promise<boolean>;
+  socialLogin: (provider: 'google' | 'facebook') => void;
+  logout: () => void;
+  updateUserProfile: (userId: string, updates: { username?: string; profilePicture?: string; }) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const defaultUserProfilePic = "data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' clip-rule='evenodd' /%3e%3c/svg%3e";
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [pets, setPets] = useState<Pet[]>([]);
@@ -35,12 +45,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
+
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            setCurrentUser(JSON.parse(storedUser));
+        }
+
         const petsData = await generatePetsData();
 
         if (petsData.length === 0) {
@@ -53,66 +71,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }));
         setPets(petsWithImages);
         
-        // Fix: Refactored service data initialization to be type-safe.
-        // First, define the service data without the imageUrl.
         const servicesData: Omit<Service, 'imageUrl'>[] = [
-          {
-            id: 'service_01',
-            name: 'Full Grooming Package',
-            description: 'A complete pampering session for your pet. Includes a bath, haircut, nail trim, and ear cleaning to keep them looking and feeling their best.',
-            price: 1500.00,
-            duration: 120,
-            activities: ['Warm bath with premium shampoo', 'Professional haircut and styling', 'Nail trimming and filing', 'Gentle ear cleaning', 'Teeth brushing', 'Anal gland expression'],
-            notes: 'Please inform us of any skin conditions or allergies beforehand.'
-          },
-          {
-            id: 'service_02',
-            name: 'Annual Health Checkup',
-            description: 'A comprehensive veterinary examination to monitor your pet\'s health. Includes vaccinations, parasite check, and a full physical.',
-            price: 2500.00,
-            duration: 45,
-            activities: ['Full physical examination', 'Core vaccinations update', 'Heartworm and parasite testing', 'Nutritional consultation', 'Blood work panel'],
-            notes: 'Please bring any previous medical records if this is your first visit.'
-          },
-          {
-            id: 'service_03',
-            name: 'Basic Obedience Training',
-            description: 'A 4-week group course covering essential commands like sit, stay, come, and leash manners. Perfect for new puppies or adopted dogs.',
-            price: 8000.00,
-            duration: 60,
-            activities: ['Positive reinforcement techniques', 'Basic command training (sit, stay, come)', 'Leash walking skills', 'Socialization with other dogs', 'Handler coaching session'],
-            notes: 'This is a 4-week course, meeting once per week. The price covers the full course.'
-          },
-          {
-            id: 'service_04',
-            name: 'Pet Sitting (Per Day)',
-            description: 'Peace of mind while you\'re away. We provide a safe, fun, and comfortable environment for your pet at our facility.',
-            price: 1000.00,
-            duration: 1440,
-            activities: ['Two long walks per day', 'Supervised group playtime', 'Regular feeding schedule', 'Cozy overnight accommodation', 'Daily photo updates'],
-            notes: 'Food is provided, but you are welcome to bring your pet\'s own food.'
-          },
-          {
-            id: 'service_05',
-            name: 'Dog Walking (30 min)',
-            description: 'A refreshing 30-minute walk for your dog to get exercise and a potty break during the day. Perfect for busy owners.',
-            price: 500.00,
-            duration: 30,
-            activities: ['Brisk 30-minute walk', 'Water break', 'Post-walk paw wipe-down', 'A photo update sent to you', 'Basic leash manners reinforcement'],
-            notes: 'Available within a 5-mile radius of our facility.'
-          }
+          { id: 'service_01', name: 'Full Grooming Package', description: 'A complete pampering session for your pet.', price: 1500.00, duration: 120, activities: ['Warm bath', 'Haircut', 'Nail trim'] },
+          { id: 'service_02', name: 'Annual Health Checkup', description: 'A comprehensive veterinary examination.', price: 2500.00, duration: 45, activities: ['Physical exam', 'Vaccinations', 'Parasite check'] },
+          { id: 'service_03', name: 'Basic Obedience Training', description: 'A 4-week group course for essential commands.', price: 8000.00, duration: 60, activities: ['Sit, stay, come', 'Leash manners', 'Socialization'] },
+          { id: 'service_04', name: 'Pet Sitting (Per Day)', description: 'Peace of mind while you\'re away.', price: 1000.00, duration: 1440, activities: ['Two walks', 'Playtime', 'Feeding'] },
+          { id: 'service_05', name: 'Dog Walking (30 min)', description: 'A refreshing 30-minute walk for your dog.', price: 500.00, duration: 30, activities: ['30-min walk', 'Water break', 'Paw wipe-down'] }
         ];
 
-        // Then, map over the data to create the full Service objects with imageUrls.
-        // This ensures the correct object type is passed to getServiceImage.
         const detailedServices: Service[] = servicesData.map(service => ({
             ...service,
             imageUrl: getServiceImage(service),
         }));
-
         setServices(detailedServices);
         
-        // Simulate some pre-existing bookings for conflict detection
         const today = new Date();
         const conflictDate = new Date(today.setDate(today.getDate() + 5)).toISOString().split('T')[0];
         setBookings([{ serviceId: 'service_01', date: conflictDate, timeSlot: 'morning' }]);
@@ -127,6 +99,114 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadData();
   }, []);
 
+  const signup = async (email: string, pass: string): Promise<boolean> => {
+    const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
+    if (users.find(u => u.email === email)) {
+      addToast('An account with this email already exists.', 'error');
+      return false;
+    }
+
+    const newUser: User = {
+      id: Date.now().toString(),
+      email,
+      username: email.split('@')[0], // Default username
+      profilePicture: defaultUserProfilePic,
+    };
+
+    // In a real app, you would hash the password 'pass'
+    users.push(newUser);
+    localStorage.setItem('users', JSON.stringify(users));
+    localStorage.setItem('currentUser', JSON.stringify(newUser));
+    setCurrentUser(newUser);
+    toggleAuthModal(false);
+    toggleProfileModal(true); // Open profile setup after signup
+    return true;
+  };
+
+  const login = async (email: string, pass: string): Promise<boolean> => {
+    const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
+    const user = users.find(u => u.email === email);
+
+    // In a real app, you would compare a hashed password
+    if (user) {
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      setCurrentUser(user);
+      toggleAuthModal(false);
+      addToast(`Welcome back, ${user.username}!`, 'success');
+      return true;
+    } else {
+      addToast('Invalid email or password.', 'error');
+      return false;
+    }
+  };
+
+  const socialLogin = (provider: 'google' | 'facebook') => {
+    // This simulates fetching data from a social provider.
+    const mockSocialData = {
+        google: {
+            email: `jane.doe.${Math.floor(Math.random() * 10000)}@google.com`,
+            username: 'Jane Doe',
+            profilePicture: `https://picsum.photos/seed/janedoe/200`
+        },
+        facebook: {
+            email: `john.smith.${Math.floor(Math.random() * 10000)}@facebook.com`,
+            username: 'John Smith',
+            profilePicture: `https://picsum.photos/seed/johnsmith/200`
+        }
+    };
+
+    const socialData = mockSocialData[provider];
+    const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
+    
+    // In this simulation, we check if any user from this provider exists.
+    // A real app would use a unique social ID.
+    let user = users.find(u => u.email.includes(`@${provider}.com`));
+    
+    if (user) {
+        // If a user from this provider exists, log them in.
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        setCurrentUser(user);
+        toggleAuthModal(false);
+        addToast(`Welcome back, ${user.username}!`, 'success');
+    } else {
+        // Otherwise, create a new user with the simulated social data.
+        const newUser: User = {
+            id: Date.now().toString(),
+            email: socialData.email,
+            username: socialData.username,
+            profilePicture: socialData.profilePicture,
+        };
+        users.push(newUser);
+        localStorage.setItem('users', JSON.stringify(users));
+        localStorage.setItem('currentUser', JSON.stringify(newUser));
+        setCurrentUser(newUser);
+        toggleAuthModal(false);
+        toggleProfileModal(true); // Open profile setup, which will be pre-populated.
+        addToast('Account created successfully! Please review your profile.', 'success');
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+    addToast('You have been signed out.', 'info');
+  };
+  
+  const updateUserProfile = (userId: string, updates: { username?: string; profilePicture?: string; }) => {
+    const users: User[] = JSON.parse(localStorage.getItem('users') || '[]');
+    const userIndex = users.findIndex(u => u.id === userId);
+
+    if (userIndex !== -1) {
+        const updatedUser = { ...users[userIndex], ...updates };
+        users[userIndex] = updatedUser;
+
+        localStorage.setItem('users', JSON.stringify(users));
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        setCurrentUser(updatedUser);
+        addToast('Profile updated successfully!', 'success');
+    }
+  };
+
   const toggleWishlist = (item: WishlistItem) => {
     setWishlist(prev => {
       const exists = prev.find(i => i.id === item.id);
@@ -137,9 +217,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const toggleAuthModal = (isOpen: boolean) => {
-    setAuthModalOpen(isOpen);
-  };
+  const toggleAuthModal = (isOpen: boolean) => setAuthModalOpen(isOpen);
+  const toggleProfileModal = (isOpen: boolean) => setProfileModalOpen(isOpen);
   
   const addToast = (message: string, type: ToastType = 'info') => {
     const id = Date.now();
@@ -178,14 +257,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
   
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
   const addBooking = (newBooking: Booking) => {
     setBookings(prev => [...prev, newBooking]);
-    // Toast is now shown on the confirmation page, so this is redundant
-    // addToast('Booking confirmed successfully!', 'success');
   };
 
   return (
@@ -196,11 +271,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       cart,
       bookings,
       isAuthModalOpen,
+      isProfileModalOpen,
       toasts,
       loading,
       error,
+      currentUser,
       toggleWishlist,
       toggleAuthModal,
+      toggleProfileModal,
       addToast,
       removeToast,
       addToCart,
@@ -208,6 +286,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateCartQuantity,
       clearCart,
       addBooking,
+      signup,
+      login,
+      socialLogin,
+      logout,
+      updateUserProfile
     }}>
       {children}
     </AppContext.Provider>

@@ -12,6 +12,7 @@ import AuthModal from './components/AuthModal';
 import ToastContainer from './components/ToastContainer';
 import CartPage from './pages/CartPage';
 import BookingPage from './pages/BookingPage';
+import ProfileSetupModal from './components/ProfileSetupModal';
 
 const App: React.FC = () => {
   return (
@@ -37,6 +38,7 @@ const App: React.FC = () => {
           </Routes>
         </main>
         <AuthModal />
+        <ProfileSetupModal />
         <ToastContainer />
       </div>
     </HashRouter>

@@ -46,3 +46,10 @@ export interface Toast {
   message: string;
   type: ToastType;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  profilePicture: string; // base64 string or URL
+}
